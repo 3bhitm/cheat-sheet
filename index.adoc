@@ -39,72 +39,150 @@ $data = $result->fetch_assoc();
 
 == Upload image to Server
 
+
+[source, html]
+----
+<h1>Dateiupload: </h1><br />
+    <form action="imageupload.php" method="post" enctype="multipart/form-data">
+        Select image to upload:
+        <input type="file" name="fileToUpload" id="fileUpload">
+        <input type="submit" value="fileUpload" name="submit">
+    </form>
+----
+
 [source, PHP]
 ----
 <?php
-$imagefile = 'foo.bar';
-$imagesize = getimagesize($imagefile);
-$imagewidth = $imagesize[0];
-$imageheight = $imagesize[1];
-$imagetype = $imagesize[2];
-switch ($imagetype)
-{
-// Bedeutung von $imagetype:
-// 1 = GIF, 2 = JPG, 3 = PNG, 4 = SWF, 5 = PSD, 6 = BMP, 7 = TIFF(intel byte order), 8 =
-TIFF(motorola byte order), 9 = JPC, 10 = JP2, 11 = JPX, 12 = JB2, 13 = SWC, 14 = IFF, 15
-= WBMP, 16 = XBM
-case 1: // GIF
-$image = imagecreatefromgif($imagefile);
-break;
-case 2: // JPEG
-$image = imagecreatefromjpeg($imagefile);
-break;
-case 3: // PNG
-$image = imagecreatefrompng($imagefile);
-break;
-default:
-die('Unsupported imageformat');
+
+$target_dir = "uploads/";
+$target_file = $target_dir . basename($_FILES["fileToUpload"]["name"]);
+$uploadok = 1;
+
+
+$imageFileType = pathinfo($target_file, PATHINFO_EXTENSION);
+// Check if image file is an actual image or fake image
+
+if (isset($_POST["submit"])) {
+    $check = getimagesize($_FILES["fileToUpload"]["tmp_name"]);
+    if ($check !== false) {
+        echo "File is an image - " . $check["mime"] . ".";
+        $uploadok = 1;
+    } else {
+        echo "File is not an image.";
+        $uploadok = 0;
+    }
 }
-// Maximalausmaße
-$maxthumbwidth = 150;
-$maxthumbheight = 100;
-// Ausmaße kopieren, wir gehen zuerst davon aus, dass das Bild schon Thumbnailgröße hat
-$thumbwidth = $imagewidth;
-$thumbheight = $imageheight;
-// Breite skalieren falls nötig
-if ($thumbwidth > $maxthumbwidth)
-{
-$factor = $maxthumbwidth / $thumbwidth;
-$thumbwidth *= $factor;
-$thumbheight *= $factor;
+// Check if file already exists
+if (file_exists($target_file)) {
+    echo "Sorry, file already exists.";
+    $uploadok = 0;
 }
-// Höhe skalieren, falls nötig
-if ($thumbheight > $maxthumbheight)
-{
-$factor = $maxthumbheight / $thumbheight;
-$thumbwidth *= $factor;
-$thumbheight *= $factor;
+// Check file size
+if ($_FILES["fileToUpload"]["size"] > 500000) {
+    echo "Sorry, your file is too large.";
+    $uploadok = 0;
 }
-// Thumbnail erstellen
-$thumb = imagecreatetruecolor($thumbwidth, $thumbheight);
-imagecopyresampled(
-$thumb,
-$image,
-0, 0, 0, 0, // Startposition des Ausschnittes
-$thumbwidth, $thumbheight,
-$imagewidth, $imageheight
-);
-header('Content-Type: image/png');
-imagepng($thumb);
-// In Datei speichern
-// $thumbfile = 'thumbs/' . $imagefile;
-// imagepng($thumb, $thumbfile);
-imagedestroy($thumb);
-?>
+// Allow certain file formats
+if ($imageFileType != "jpg" && $imageFileType != "png" && $imageFileType != "jpeg" && $imageFileType != "gif") {
+    echo "Sorry, only JPG, JPEG, PNG & GIF files are allowed.";
+    $uploadok = 0;
+}
+// Check if $uploadok is set to 0 by an error
+if ($uploadok == 0) {
+    echo "Sorry, your file was not uploaded.";
+    // if everything is ok, try to upload file
+} else {
+
+    if (move_uploaded_file($_FILES["fileToUpload"]["tmp_name"], $target_file)) {
+        echo "The file " . basename($_FILES["fileToUpload"]["name"]) . " has been uploaded.";
+        $_db_host = "localhost";
+        $_db_datenbank = "web";
+        $_db_username = "web";
+        $_db_passwort = "abcdefgh";
+        $conn = new mysqli($_db_host, $_db_username, $_db_passwort, $_db_datenbank);
+        //Check connection
+        if ($conn->connect_error) {
+            die("Connection failed: $conn->connect_error");
+        }
+
+        $imagefile = $target_file;
+        $imagesize = getimagesize($imagefile);
+        $imagewidth = $imagesize[0];
+        $imageheight = $imagesize[1];
+        $imagetype = $imagesize[2];
+        switch ($imagetype) {
+            case 1: // GIF
+                $image = imagecreatefromgif($imagefile);
+                break;
+            case 2: // JPEG
+                $image = imagecreatefromjpeg($imagefile);
+                break;
+            case 3: // PNG
+                $image = imagecreatefrompng($imagefile);
+                break;
+            default:
+                die('Unsupported imageformat');
+        }
+        // Maximalausmaße
+        $maxthumbwidth = 150;
+        $maxthumbheight = 100;
+        // Ausmaße kopieren, wir gehen zuerst davon aus, dass das Bild schon Thumbnailgröße hat
+        $thumbwidth = $imagewidth;
+        $thumbheight = $imageheight;
+        // Breite skalieren falls nötig
+        if ($thumbwidth > $maxthumbwidth) {
+            $factor = $maxthumbwidth / $thumbwidth;
+            $thumbwidth *= $factor;
+            $thumbheight *= $factor;
+        }
+        // Höhe skalieren, falls nötig
+        if ($thumbheight > $maxthumbheight) {
+            $factor = $maxthumbheight / $thumbheight;
+            $thumbwidth *= $factor;
+            $thumbheight *= $factor;
+        }
+        // Thumbnail erstellen
+        $thumb = imagecreatetruecolor($thumbwidth, $thumbheight);
+        imagecopyresampled(
+            $thumb,
+            $image,
+            0,
+            0,
+            0,
+            0, // Startposition des Ausschnittes
+            $thumbwidth,
+            $thumbheight,
+            $imagewidth,
+            $imageheight
+        );
+        // In Datei speichern
+        $thumbfile = 'thumbs/' . $imagefile;
+
+        imagepng($thumb, $thumbfile);
+
+
+        $insertStatement = "INSERT INTO images(id, path, thumb_path) VALUES('','$target_file','$thumbfile');";
+        if ($_res = $conn->query($insertStatement)) {
+            echo "<br>Image $target_file has been added to the database.";
+        } else {
+            echo "<br>No insertion into database";
+        }
+        //close database
+        $conn->close();
+    } else {
+        echo "Move does not work";
+    }
+}
 ----
 
 == Bilder erstellen mit PHP
 
+* *PHP Datei als Bild laden:*
+
+[source, PHP]
+----
+header ("Content-type: image/png");
+----
 
 * *lerres Bild erstellen:*
 
@@ -129,4 +207,78 @@ form($bild, 100, 100, 100, $color);
 #Ausgabe:
 imagepng($bild);
 ----
+
+== PHP Content Generierung
+
+.foo.php
+[source, PHP]
+----
+<?php
+return "foo";
+?>
+----
+
+[source, PHP]
+----
+$bar = require("foo.php");
+echo $bar; // equals to "foo"
+
+require("header.php");
+----
+
+.PHP File
+[source, PHP]
+----
+// READ FILE
+    $data = file_get_contents("news.json");
+    $news = json_decode($data);
+----
+
+.JSON File
+[source,json]
+----
+{"menu": {
+  "id": "file",
+  "value": "File",
+  "popup": {
+    "menuitem": [
+      {"value": "New", "onclick": "CreateNewDoc()"},
+      {"value": "Open", "onclick": "OpenDoc()"},
+      {"value": "Close", "onclick": "CloseDoc()"}
+    ]
+  }
+}}
+----
+
+== Formular
+
+[source,PHP]
+----
+if(isset($_POST['senden'])){
+//Daten verarbieten
+}
+----
+
+[source,PHP]
+----
+<form method="post" action="<?php echo htmlspecialchars($_SERVER["PHP_SELF"]);?>">
+
+    <label for="vname">Vorname: </label>
+    <input type="text"
+            class="form-control "
+            name="vname" id="vname"
+            placeholder="Max"
+            <?php if(isset($eingabe['vname'])) echo ' value="'.$eingabe['vname'].'"';?>
+    >
+    <label for="vname">Nachname: </label>
+    <input type="text"
+            class="form-control"
+            name="nname" id="nname"
+            placeholder="Mustermann"
+            <?php if(isset($eingabe['nname'])) echo ' value="'.$eingabe['nname'].'"';?>
+    >
+</form>
+----
+
+
 
